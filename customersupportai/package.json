@@ -1,5 +1,5 @@
 {
-  "name": "customersupportai",
+  "name": "customer-support-a",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -9,11 +9,11 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@emotion/react": "^11.13.0",
-    "@emotion/styled": "^11.13.0",
-    "@mui/material": "^5.16.6",
+    "@next-auth/prisma-adapter": "^1.0.7",
+    "franc-min": "^6.2.0",
     "next": "14.2.5",
-    "openai": "^4.55.1",
+    "next-auth": "^4.24.7",
+    "openai": "^4.55.4",
     "react": "^18",
     "react-dom": "^18"
   },
