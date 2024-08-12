@@ -1,44 +1,68 @@
-import { NextResponse } from 'next/server' // Import NextResponse from Next.js for handling responses
-import OpenAI from 'openai' // Import OpenAI library for interacting with the OpenAI API
+import { NextResponse } from 'next/server';
+import OpenAI from 'openai';
 
-// System prompt for the AI, providing guidelines on how to respond to users
-const systemPrompt = "Your system prompt here"; // Use your own system prompt here
+// Replace with your actual OpenAI API key
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY, // Ensure this environment variable is set
+});
 
-// POST function to handle incoming requests
+// System prompt for the AI
+const systemPrompt = "You are a helpful assistant.";
+
 export async function POST(req) {
-  const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY, // Ensure your API key is configured
-  }); // Create a new instance of the OpenAI client
-  
-  const data = await req.json(); // Parse the JSON body of the incoming request
+  try {
+    const data = await req.json();
+    const userMessage = data[data.length - 1].content;
+    const language = detectLanguage(userMessage); // Function to detect language
 
-  // Create a chat completion request to the OpenAI API
-  const completion = await openai.chat.completions.create({
-    messages: [{ role: 'system', content: systemPrompt }, ...data], // Include the system prompt and user messages
-    model: 'gpt-4', // Specify the model to use
-    stream: true, // Enable streaming responses
-  });
+    // Adjust the system prompt based on the detected language
+    const languagePrompts = {
+      'fr': 'Vous êtes un assistant utile.',
+      'es': 'Eres un asistente útil.',
+      'de': 'Sie sind ein hilfreicher Assistent.',
+      'default': systemPrompt,
+    };
 
-  // Create a ReadableStream to handle the streaming response
-  const stream = new ReadableStream({
-    async start(controller) {
-      const encoder = new TextEncoder(); // Create a TextEncoder to convert strings to Uint8Array
-      try {
-        // Iterate over the streamed chunks of the response
-        for await (const chunk of completion) {
-          const content = chunk.choices[0]?.delta?.content; // Extract the content from the chunk
-          if (content) {
-            const text = encoder.encode(content); // Encode the content to Uint8Array
-            controller.enqueue(text); // Enqueue the encoded text to the stream
+    const adjustedSystemPrompt = languagePrompts[language] || languagePrompts['default'];
+
+    // Create a chat completion request to OpenAI API
+    const completion = await openai.chat.completions.create({
+      messages: [{ role: 'system', content: adjustedSystemPrompt }, ...data],
+      model: 'gpt-4o', // Update model if necessary
+      stream: true,
+    });
+
+    // Handle streaming response
+    const stream = new ReadableStream({
+      async start(controller) {
+        const encoder = new TextEncoder();
+        try {
+          for await (const chunk of completion) {
+            const content = chunk.choices[0]?.delta?.content;
+            if (content) {
+              const text = encoder.encode(content);
+              controller.enqueue(text);
+            }
           }
+        } catch (err) {
+          controller.error(err);
+        } finally {
+          controller.close();
         }
-      } catch (err) {
-        controller.error(err); // Handle any errors that occur during streaming
-      } finally {
-        controller.close(); // Close the stream when done
-      }
-    },
-  });
+      },
+    });
 
-  return new Response(stream); // Return the stream as the response
+    return new NextResponse(stream);
+  } catch (error) {
+    console.error('Error processing request:', error);
+    return new NextResponse('Internal Server Error', { status: 500 });
+  }
+}
+
+// Simple language detection based on common phrases
+function detectLanguage(text) {
+  if (text.includes('Bonjour')) return 'fr';
+  if (text.includes('Hola')) return 'es';
+  if (text.includes('Hallo')) return 'de';
+  return 'en'; // Default to English
 }
